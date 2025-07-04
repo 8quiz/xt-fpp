@@ -1,46 +1,50 @@
-local config = require 'config'
-local playerState = LocalPlayer.state
-local SetFollowPedCamViewMode = SetFollowPedCamViewMode
-local IsControlJustReleased =   IsControlJustReleased
-local DisableControlAction =    DisableControlAction
+local config = lib.require('config')
+local UTILS = lib.require('modules.utils')
+local LAST_CAM_UTILS = lib.require('modules.lastcam')
+
+local SetFollowPedCamViewMode   = SetFollowPedCamViewMode
+local IsControlJustReleased     = IsControlJustReleased
+local IsControlJustPressed      = IsControlJustPressed
+local DisableControlAction      = DisableControlAction
 
 local function weaponLoop(weapon)
     Wait(500)
     local sleep = 1
-    while (cache.weapon == weapon) do
-        if not cache.vehicle then
-            sleep = 1
+    CreateThread(function()
+        while cache.weapon do
+            if not cache.vehicle then
+                sleep = 1
 
-            if isPlayerAiming() then
-                setLastCam()
-
-                if not cache.vehicle and FPPWeapon then
-                    SetFollowPedCamViewMode(4)
+                if IsControlJustPressed(0, 25) then
+                    LAST_CAM_UTILS.setLastCam()
+                elseif IsControlJustReleased(0, 25) then
+                    LAST_CAM_UTILS.resetPlayerCam(false)
                 end
 
-                DisableControlAction(0, 0, true)
+                local isAiming = UTILS.isPlayerAiming()
+                if isAiming then
+                    if not cache.vehicle and FPPWeapon then
+                        SetFollowPedCamViewMode(4)
+                    end
+
+                    DisableControlAction(0, 0, true)
+                end
             else
-                if IsControlJustReleased(0, 25) then
-                    resetPlayerCam(playerState.lastCam, true)
-                end
-                Wait(100)
+                sleep = 1000 -- Allow the vehicle loop to control fpp until exiting the vehicle
             end
-        else
-            sleep = 1000
-        end
 
-        Wait(sleep)
-    end
+            Wait(sleep)
+        end
+    end)
 end
 
 lib.onCache('weapon', function(value)
-    FPPWeapon, FPPVehicleWeapon = isWeaponFPP(value)
+    FPPWeapon, FPPVehicleWeapon = UTILS.isWeaponFPP(value)
 
     if not config.forceAimingFPP then return end
     if not FPPWeapon then return end
 
     if not cache.weapon and value then
-        setLastCam()
         weaponLoop(value)
     else
         FPPWeapon, FPPVehicleWeapon = false, false
