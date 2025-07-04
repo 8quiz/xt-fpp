@@ -1,34 +1,47 @@
-local config = require 'config'
-local playerState = LocalPlayer.state
-local IsControlJustReleased =   IsControlJustReleased
-local GetFollowPedCamViewMode = GetFollowPedCamViewMode
+local config = lib.require('config')
+local UTILS = lib.require('modules.utils')
+local LAST_CAM_UTILS = lib.require('modules.lastcam')
 
-local function vehicleLoop(vehicle)
+local IsControlJustReleased     = IsControlJustReleased
+local IsControlJustPressed      = IsControlJustPressed
+local GetFollowPedCamViewMode   = GetFollowPedCamViewMode
+local SetPlayerCanDoDriveBy     = SetPlayerCanDoDriveBy
+
+local function vehicleLoop()
     Wait(500)
-    while (cache.vehicle == vehicle) do
-        local isDriver = (cache.seat == -1)
-        local forceDriver = (isDriver and config.forceDrivingFPP)
-        local forcePassenger = (not isDriver and config.forceAllPassengersFPP)
-        local isAiming = config.forceVehicleAimingFPP and (FPPVehicleWeapon and isPlayerAiming()) or false
-        local currentCam = getCamByVehicleType()
+    CreateThread(function()
+        LAST_CAM_UTILS.setLastCam() -- save last cam before entering vehicle. if aiming is enabled and driver/passenger fpp is disabled, this will be overridden quickly
 
-        if forceDriver or forcePassenger or isAiming and currentCam ~= 4 then
-            setCamByVehicleType(4)
-        else
-            if config.forceVehicleAimingFPP and IsControlJustReleased(0, 25) then
-                resetPlayerCam(playerState.lastCam, false)
+        while IsPedInAnyVehicle(cache.ped, false) do
+            local isDriver = (cache.seat == -1)
+            local forceDriver = (isDriver and config.forceDrivingFPP)
+            local forcePassenger = (not isDriver and config.forceAllPassengersFPP)
+            local isAiming = UTILS.isPlayerAiming()
+
+            if config.forceVehicleAimingFPP and FPPVehicleWeapon then
+                if IsControlJustPressed(0, 25) then
+                    LAST_CAM_UTILS.setLastCam()
+                elseif IsControlJustReleased(0, 25) then
+                    LAST_CAM_UTILS.resetPlayerCam(false)
+                end
             end
-        end
 
-        Wait(1)
-    end
+            if isAiming or forceDriver or forcePassenger then
+                UTILS.setCamByVehicleType(4)
+            end
+
+            Wait(1)
+        end
+    end)
 end
 
+-- prevent player from shooting while entering vehicle until they have stopped aiming
+-- workaround for fixing an "exploit" to fpp
 local function aimingWhileEntering()
     local canShoot = false
     CreateThread(function()
         while true do
-            local isAiming = (FPPVehicleWeapon and isPlayerAiming()) and true or false
+            local isAiming = UTILS.isPlayerAiming()
             if isAiming then
                 canShoot = false
             else
@@ -44,20 +57,20 @@ end
 
 SetPlayerCanDoDriveBy(cache.playerId, true)
 
-lib.onCache('vehicle', function(value)
-    if not config.forceDrivingFPP and not config.forceAllPassengersFPP and not config.forceVehicleAimingFPP then
+lib.onCache('seat', function(newSeat)
+    if not newSeat then
+        LAST_CAM_UTILS.resetPlayerCam(true) -- reset cam on exit
         return
     end
 
-    if not cache.vehicle and value then
-        local isAiming = config.forceVehicleAimingFPP and (FPPVehicleWeapon and isPlayerAiming()) or false
-        if isAiming then
+    local isDriver = (newSeat == -1)
+
+    if config.forceVehicleAimingFPP or (isDriver and config.forceDrivingFPP) or (not isDriver and config.forceAllPassengersFPP) then
+        local isAiming = config.forceVehicleAimingFPP and FPPVehicleWeapon or false
+        if isAiming then -- prevent exploit
             aimingWhileEntering()
         end
 
-        setLastCam()
-        vehicleLoop(value)
-    else
-        resetPlayerCam(playerState.lastCam, true)
+        vehicleLoop()
     end
 end)
