@@ -21,7 +21,7 @@ return {
     },
 
     -- Aiming Weapons on Foot FPP Configs --
-    forceAimingFPP = true,                          -- Force FPP while aiming
+    forceAimingFPP = false,                          -- Force FPP while aiming
     forceAllWeaponsFPP = false,                     -- Force FPP while aiming for all weapons
     forceAimingWeapons = {                          -- If forceAllWeaponsFPP is false, only these weapons force FPP while aiming
         `WEAPON_PISTOL`,
