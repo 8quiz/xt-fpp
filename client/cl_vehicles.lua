@@ -42,15 +42,12 @@ local function aimingWhileEntering()
     CreateThread(function()
         while true do
             local isAiming = UTILS.isPlayerAiming()
-            if isAiming then
-                canShoot = false
-            else
-                SetPlayerCanDoDriveBy(cache.playerId, true)
-                break
-            end
+            canShoot = (not isAiming)
 
             SetPlayerCanDoDriveBy(cache.playerId, canShoot)
-            Wait(100)
+            if canShoot then break end
+
+            Wait(10)
         end
     end)
 end
